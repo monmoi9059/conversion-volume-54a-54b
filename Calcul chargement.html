@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calcul Chargement & Réservoir avec Date/Heure de Début</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles to complement Tailwind or for specific overrides */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Refinery/Ship background theme */
+            background: #34495e url('https://placehold.co/1920x1080/4f5b66/ffffff?text=Refinery+Port') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        /* Override Tailwind's default font if needed for specific elements, though 'Inter' is set in body */
+        .text-label { font-family: 'Inter', sans-serif; }
+
+        /* SVG specific styles (remain custom as Tailwind doesn't style SVG paths/shapes directly) */
+        /* Adjusted colors to fit the industrial theme better */
+        .tank-body, .boat-hull { fill: #cbd5e1; stroke: #64748b; stroke-width: 2px; } /* Lighter, more metallic grey for elements */
+        .liquid-fill { fill: #16a34a; transition: all 0.1s linear; } /* Darker, more industrial green for liquid */
+        .pipe { fill: #64748b; } /* Grey for pipes */
+        .text-label { font-size: 11px; fill: #334155; } /* Smaller, darker text for labels */
+        .pipe-flow { fill: #16a34a; animation: flowAnimation 1s infinite linear; } /* Green flow */
+        .stop-marker { fill: none; stroke: #f97316; stroke-width: 2px; stroke-dasharray: 4; } /* Orange dashed line */
+        
+        /* Animation for fluid flow */
+        @keyframes flowAnimation {
+            0% { transform: translateX(0); opacity: 1; }
+            50% { transform: translateX(20px); opacity: 0.5; }
+            100% { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column; /* Stack label and input vertically */
+                align-items: flex-start;
+            }
+            .input-group label {
+                margin-right: 0;
+                margin-bottom: 5px; /* Space between label and input when stacked */
+                min-width: unset;
+            }
+            .input-group input {
+                flex: none;
+                width: 100%; /* Full width for input on small screens */
+                max-width: none;
+            }
+            .text-label { font-size: 10px; } /* Even smaller font for labels on very small screens */
+        }
+    </style>
+</head>
+<body class="p-2 sm:p-4 text-gray-800">
+
+<div class="section bg-white bg-opacity-90 rounded-xl shadow-lg p-4 sm:p-6 mb-4 w-full max-w-2xl box-border">
+    <h2 class="text-xl sm:text-2xl font-semibold text-blue-800 border-b-2 border-blue-600 pb-2 mb-4">⚓ Calcul du chargement navire</h2>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="total" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Total à charger:</label>
+        <input type="number" id="total" placeholder="m³" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="deja" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Déjà à bord:</label>
+        <input type="number" id="deja" placeholder="m³" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="debit" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Débit de chargement:</label>
+        <input type="number" id="debit" placeholder="m³/h" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="quantiteADeplacer" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Quantité à déplacer (avant la fin du chargement):</label>
+        <input type="number" id="quantiteADeplacer" placeholder="m³" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="extra" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Temps d'attente / niaisage (min):</label>
+        <input type="number" id="extra" placeholder="minutes" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="startDate" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Date de début (optionnel):</label>
+        <input type="date" id="startDate" class="flex-none w-[130px] sm:w-[150px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="startTime" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Heure de début (optionnel):</label>
+        <input type="time" id="startTime" class="flex-none w-[130px] sm:w-[150px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="flex flex-col sm:flex-row gap-2 mt-4">
+        <button onclick="handleCalculateShip()" class="px-4 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white font-bold rounded-lg shadow-md hover:from-blue-800 hover:to-blue-950 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition transform hover:-translate-y-0.5 text-sm sm:text-base w-full sm:w-auto">
+            Calculer fin
+        </button>
+        <button onclick="resetCalculations()" class="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-800 text-white font-bold rounded-lg shadow-md hover:from-gray-700 hover:to-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-opacity-75 transition transform hover:-translate-y-0.5 text-sm sm:text-base w-full sm:w-auto">
+            Réinitialiser
+        </button>
+    </div>
+    <p id="resultat" class="mt-4 p-3 rounded-lg text-sm sm:text-base leading-tight"></p>
+</div>
+
+<div class="section bg-white bg-opacity-90 rounded-xl shadow-lg p-4 sm:p-6 mb-4 w-full max-w-2xl box-border">
+    <h2 class="text-xl sm:text-2xl font-semibold text-blue-800 border-b-2 border-blue-600 pb-2 mb-4">🛢️ Réservoir utilisé</h2>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="capRes" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Capacité réservoir:</label>
+        <input type="number" id="capRes" placeholder="m³" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="quantRes" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Quantité actuelle:</label>
+        <input type="number" id="quantRes" placeholder="m³" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <div class="input-group flex flex-wrap items-center mb-3">
+        <label for="debitEntrant" class="flex-1 min-w-[150px] mr-2 font-medium text-sm sm:text-base">Débit entrant (alimentation):</label>
+        <input type="number" id="debitEntrant" placeholder="m³/h" class="flex-none w-[100px] sm:w-[120px] p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+    </div>
+    <button onclick="handleCalculateReservoir()" class="mt-4 px-4 py-2 bg-gradient-to-r from-blue-700 to-blue-900 text-white font-bold rounded-lg shadow-md hover:from-blue-800 hover:to-blue-950 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition transform hover:-translate-y-0.5 text-sm sm:text-base w-full sm:w-auto">
+        Vérifier alimentation
+    </button>
+    <p id="resultReservoir" class="mt-4 p-3 rounded-lg text-sm sm:text-base leading-tight"></p>
+</div>
+
+<div class="section bg-white bg-opacity-90 rounded-xl shadow-lg p-4 sm:p-6 mb-4 w-full max-w-2xl box-border">
+    <h2 class="text-xl sm:text-2xl font-semibold text-blue-800 border-b-2 border-blue-600 pb-2 mb-4">📊 Visualisation du chargement et du réservoir</h2>
+    
+    <div class="input-group flex items-center mb-4">
+        <label for="animationSpeed" class="flex-1 mr-2 font-medium text-sm sm:text-base">Vitesse d'animation:</label>
+        <input type="range" id="animationSpeed" min="0.01" max="1" step="0.01" value="0.05" class="flex-1 w-full max-w-[200px] sm:max-w-[300px] h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <span id="speedValue" class="ml-3 text-sm sm:text-base font-medium text-gray-700 w-[40px] text-right">0.05x</span>
+    </div>
+
+    <div class="visual-container w-full max-w-lg mx-auto h-[280px] sm:h-[300px] bg-gray-200 rounded-lg shadow-inner flex items-end justify-center p-3 sm:p-4 box-border relative overflow-hidden">
+        <svg id="visualGraphique" viewBox="0 0 600 300" preserveAspectRatio="xMidYMid meet" class="w-full h-full">
+            <rect x="400" y="70" width="80" height="180" rx="5" ry="5" class="tank-body"></rect>
+            <rect x="390" y="65" width="100" height="10" rx="2" ry="2" class="tank-body"></rect> <rect x="435" y="55" width="10" height="10" rx="2" ry="2" class="pipe"></rect> <line x1="400" y1="130" x2="480" y2="130" stroke="#64748b" stroke-width="1"></line> <line x1="400" y1="190" x2="480" y2="190" stroke="#64748b" stroke-width="1"></line> <rect id="tankLiquid" x="400" y="250" width="80" height="0" rx="5" ry="5" class="liquid-fill"></rect>
+            <text x="440" y="45" text-anchor="middle" class="text-label">Réservoir</text>
+            <text id="tankVolume" x="440" y="270" text-anchor="middle" class="text-label">0 m³</text>
+
+            <rect x="350" y="145" width="50" height="10" class="pipe"></rect>
+            <rect x="300" y="145" width="50" height="10" class="pipe"></rect>
+            <rect x="290" y="145" width="10" height="50" class="pipe"></rect>
+            <rect x="200" y="185" width="90" height="10" class="pipe"></rect>
+            <rect x="200" y="185" width="10" height="40" class="pipe"></rect>
+            <rect x="150" y="215" width="50" height="10" class="pipe"></rect>
+            
+            <rect x="360" y="147" width="10" height="6" class="pipe-flow"></rect>
+            <rect x="310" y="147" width="10" height="6" class="pipe-flow" style="animation-delay: 0.5s;"></rect>
+
+            <path d="M 40 225 L 60 195 H 170 L 190 225 L 175 250 L 55 250 Z" class="boat-hull"></path> <rect x="65" y="185" width="100" height="10" rx="2" ry="2" class="tank-body"></rect> <rect x="150" y="165" width="15" height="20" rx="2" ry="2" class="tank-body"></rect> <rect id="boatLiquid" x="65" y="250" width="100" height="0" class="liquid-fill"></rect>
+            <text x="110" y="170" text-anchor="middle" class="text-label">Navire</text>
+            <text id="boatVolume" x="110" y="270" text-anchor="middle" class="text-label">0 m³</text>
+            <text id="targetVolume" x="110" y="180" text-anchor="middle" fill="#ef4444" font-weight="bold" class="text-label">Cible: 0 m³</text>
+            
+            <rect id="stopMarker" x="63" y="250" width="104" height="2" class="stop-marker" style="display:none;"></rect>
+            <text id="stopMarkerText" x="110" y="240" text-anchor="middle" fill="#f59e0b" font-weight="bold" font-size="10px" style="display:none;"></text>
+        </svg>
+    </div>
+</div>
+
+<script>
+    // Variables d'état de l'application
+    const appState = {
+        // État du chargement navire
+        shipLoading: {
+            total: null,
+            deja: null,
+            debit: null,
+            remaining: null,
+            durationHours: null,
+            extraMinutes: null,
+            endTime: null,
+            stopQuantityAbs: null,
+            stopTime: null,
+            startTime: null
+        },
+        // État du réservoir
+        reservoir: {
+            capacity: null,
+            currentVolume: null,
+            inflowRate: null,
+            netFlow: null,
+            willEmpty: false,
+            willFill: false,
+            timeToEmpty: null,
+            timeToFill: null,
+        },
+        // État de la visualisation
+        animation: {
+            frameId: null,
+            startTime: null,
+            speedMultiplier: 0.05
+        },
+        // Références DOM des éléments SVG pour une manipulation plus rapide
+        dom: {}
+    };
+
+    // Constantes pour améliorer la lisibilité des calculs
+    const MS_PER_HOUR = 3600 * 1000;
+    const MAX_ANIMATION_DURATION_HOURS = 24 * 30; // Limite la durée d'animation à 30 jours simulés
+
+    /**
+     * Helper function to safely parse input values as floats.
+     * @param {string} id - The ID of the input element.
+     * @param {number} defaultValue - Default value to use if input is empty or invalid.
+     * @returns {number} The parsed float value, or defaultValue if invalid.
+     */
+    function getInputValue(id, defaultValue = 0) {
+        const element = document.getElementById(id);
+        if (element) {
+            const value = parseFloat(element.value);
+            return isNaN(value) ? defaultValue : value;
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Initializes DOM references and event listeners once the DOM is ready.
+     */
+    document.addEventListener('DOMContentLoaded', () => {
+        // Cache DOM references
+        appState.dom.resultat = document.getElementById("resultat");
+        appState.dom.resultReservoir = document.getElementById("resultReservoir");
+        appState.dom.tankLiquid = document.getElementById("tankLiquid");
+        appState.dom.boatLiquid = document.getElementById("boatLiquid");
+        appState.dom.tankVolume = document.getElementById("tankVolume");
+        appState.dom.boatVolume = document.getElementById("boatVolume");
+        appState.dom.targetVolume = document.getElementById("targetVolume");
+        appState.dom.pipeFlows = document.querySelectorAll(".pipe-flow");
+        appState.dom.stopMarker = document.getElementById("stopMarker");
+        appState.dom.stopMarkerText = document.getElementById("stopMarkerText");
+        appState.dom.animationSpeedSlider = document.getElementById("animationSpeed");
+        appState.dom.speedValueDisplay = document.getElementById("speedValue");
+        appState.dom.shipInputs = document.querySelectorAll('#total, #deja, #debit, #quantiteADeplacer, #extra, #startDate, #startTime');
+        appState.dom.reservoirInputs = document.querySelectorAll('#capRes, #quantRes, #debitEntrant');
+
+        // Set initial slider value and display
+        if (appState.dom.animationSpeedSlider && appState.dom.speedValueDisplay) {
+            appState.dom.animationSpeedSlider.value = appState.animation.speedMultiplier;
+            appState.dom.speedValueDisplay.textContent = `${appState.animation.speedMultiplier.toFixed(2)}x`;
+        }
+
+        // Attach event listeners to trigger recalculation on input changes
+        setupEventListeners();
+        
+        // Initial state display
+        updateVisuals(0, 0, 1, 1, 0);
+    });
+
+    /**
+     * Sets up event listeners for all input fields and the animation slider.
+     */
+    function setupEventListeners() {
+        appState.dom.shipInputs.forEach(input => {
+            input.addEventListener('input', handleCalculateShip);
+        });
+        
+        appState.dom.reservoirInputs.forEach(input => {
+            input.addEventListener('input', handleCalculateReservoir);
+        });
+
+        if (appState.dom.animationSpeedSlider) {
+            appState.dom.animationSpeedSlider.addEventListener('input', (event) => {
+                appState.animation.speedMultiplier = parseFloat(event.target.value);
+                appState.dom.speedValueDisplay.textContent = `${appState.animation.speedMultiplier.toFixed(2)}x`;
+                // Re-run reservoir calculation to restart animation with new speed
+                handleCalculateReservoir();
+            });
+        }
+    }
+
+    /**
+     * Calculates the estimated end time for ship loading and any intermediate stops.
+     */
+    function handleCalculateShip() {
+        // Clear previous results
+        appState.dom.resultat.innerHTML = "";
+        
+        const total = getInputValue("total");
+        const deja = getInputValue("deja");
+        const debit = getInputValue("debit");
+        const quantiteADeplacer = getInputValue("quantiteADeplacer");
+        const extra = getInputValue("extra");
+
+        // Validate essential inputs
+        if (total <= 0 || debit <= 0) {
+            appState.dom.resultat.innerHTML = `<p class="alert-error bg-red-100 border border-red-400 text-red-700 p-3 mt-4 rounded-lg">⚠️ Veuillez entrer des valeurs valides et positives pour **Total à charger** et **Débit de chargement**.</p>`;
+            // Reset global state and return
+            appState.shipLoading.remaining = null;
+            appState.shipLoading.debit = null;
+            appState.shipLoading.endTime = null;
+            appState.shipLoading.stopQuantityAbs = null;
+            appState.shipLoading.stopTime = null;
+            appState.shipLoading.startTime = null;
+            handleCalculateReservoir(); // Trigger reservoir update to reflect state change
+            return;
+        }
+
+        if (deja > total || deja < 0) {
+            appState.dom.resultat.innerHTML = `<p class="alert-error bg-red-100 border border-red-400 text-red-700 p-3 mt-4 rounded-lg">⚠️ La quantité **Déjà à bord** (${deja.toFixed(2)} m³) ne peut pas être supérieure au **Total à charger** (${total.toFixed(2)} m³) ou être négative.</p>`;
+            appState.shipLoading.remaining = null;
+            appState.shipLoading.debit = null;
+            appState.shipLoading.endTime = null;
+            handleCalculateReservoir();
+            return;
+        }
+        
+        // Update appState for ship loading
+        appState.shipLoading.total = total;
+        appState.shipLoading.deja = deja;
+        appState.shipLoading.debit = debit;
+        appState.shipLoading.extraMinutes = extra;
+        appState.shipLoading.remaining = total - deja;
+        
+        const startDateInput = document.getElementById("startDate").value;
+        const startTimeInput = document.getElementById("startTime").value;
+        const now = new Date();
+        const startTime = (startDateInput && startTimeInput) ? new Date(`${startDateInput}T${startTimeInput}`) : now;
+        appState.shipLoading.startTime = startTime;
+
+        if (appState.shipLoading.remaining <= 0) {
+            appState.dom.resultat.innerHTML = `<p class="alert-success bg-green-100 border border-green-400 text-green-700 p-3 mt-4 rounded-lg">✅ Tout est déjà chargé !</p>`;
+            appState.shipLoading.endTime = null;
+            handleCalculateReservoir();
+            return;
+        }
+
+        const durationHours = appState.shipLoading.remaining / debit;
+        const totalDurationMs = durationHours * MS_PER_HOUR + extra * 60 * 1000;
+        appState.shipLoading.durationHours = durationHours;
+        appState.shipLoading.endTime = new Date(startTime.getTime() + totalDurationMs);
+
+        let resultMessage = `<p class="alert-success bg-green-100 border border-green-400 text-green-700 p-3 mt-4 rounded-lg">
+            📦 Quantité restante: **${appState.shipLoading.remaining.toFixed(2)} m³**<br>
+            ⏳ Durée estimée: **${durationHours.toFixed(2)} h**<br>
+            ➕ Temps d'attente / niaisage : **${extra} min**<br>
+            🏁 Début prévu: **${appState.shipLoading.startTime.toLocaleString('fr-CA')}**<br>
+            ✅ Fin prévue: **${appState.shipLoading.endTime.toLocaleString('fr-CA')}**`;
+
+        // Calculate stop time if a valid quantity to displace is provided
+        appState.shipLoading.stopQuantityAbs = null;
+        appState.shipLoading.stopTime = null;
+        if (quantiteADeplacer > 0 && quantiteADeplacer < total) {
+            appState.shipLoading.stopQuantityAbs = total - quantiteADeplacer;
+            if (appState.shipLoading.stopQuantityAbs > deja) {
+                const volumeForStop = appState.shipLoading.stopQuantityAbs - deja;
+                const stopHours = volumeForStop / debit;
+                appState.shipLoading.stopTime = new Date(startTime.getTime() + stopHours * MS_PER_HOUR);
+                
+                resultMessage += `<br><br>
+                    ⚠️ <b class="text-orange-600">Arrêt pour déplacement de ligne:</b><br>
+                    📊 Quantité à déplacer: **${quantiteADeplacer.toFixed(2)} m³**<br>
+                    📊 Quantité totale atteinte à l'arrêt: **${appState.shipLoading.stopQuantityAbs.toFixed(2)} m³**<br>
+                    ⏰ Heure de l'arrêt: **${appState.shipLoading.stopTime.toLocaleString('fr-CA')}**`;
+            } else {
+                resultMessage += `<br><br><span class="alert-error bg-red-100 border border-red-400 text-red-700">⚠️ La "Quantité à déplacer" (${quantiteADeplacer.toFixed(2)} m³) est déjà atteinte ou n'est pas valide par rapport à la quantité "Déjà à bord".</span>`;
+            }
+        }
+
+        resultMessage += `</p>`;
+        appState.dom.resultat.innerHTML = resultMessage;
+        
+        // Trigger reservoir calculation to update visuals
+        handleCalculateReservoir();
+    }
+
+    /**
+     * Calculates and displays if the reservoir can sustain the ship loading.
+     * Also initiates a dynamic SVG animation of volume evolution.
+     */
+    function handleCalculateReservoir() {
+        // Clear previous results
+        appState.dom.resultReservoir.innerHTML = "";
+        
+        const capacity = getInputValue("capRes");
+        const currentVolume = getInputValue("quantRes");
+        const inflowRate = getInputValue("debitEntrant");
+        
+        // Validate essential reservoir inputs
+        if (capacity <= 0) {
+            appState.dom.resultReservoir.innerHTML = `<p class="alert-error bg-red-100 border border-red-400 text-red-700 p-3 mt-4 rounded-lg">⚠️ La **Capacité réservoir** doit être une valeur positive.</p>`;
+            updateVisuals(currentVolume, getInputValue("deja"), capacity, getInputValue("total"), appState.shipLoading.stopQuantityAbs);
+            stopAnimation();
+            return;
+        }
+        if (currentVolume < 0) {
+            appState.dom.resultReservoir.innerHTML = `<p class="alert-error bg-red-100 border border-red-400 text-red-700 p-3 mt-4 rounded-lg">⚠️ La **Quantité actuelle** ne peut pas être négative.</p>`;
+            updateVisuals(currentVolume, getInputValue("deja"), capacity, getInputValue("total"), appState.shipLoading.stopQuantityAbs);
+            stopAnimation();
+            return;
+        }
+
+        // Update appState for reservoir
+        appState.reservoir.capacity = capacity;
+        appState.reservoir.currentVolume = currentVolume;
+        appState.reservoir.inflowRate = inflowRate;
+        
+        const isShipLoadingActive = (appState.shipLoading.remaining !== null && appState.shipLoading.debit > 0 && appState.shipLoading.remaining > 0);
+        const outflowRate = isShipLoadingActive ? appState.shipLoading.debit : 0;
+        appState.reservoir.netFlow = inflowRate - outflowRate;
+
+        let message = "";
+        let animationDurationHours = 0;
+        
+        // Check if reservoir will fill or empty
+        appState.reservoir.willEmpty = false;
+        appState.reservoir.willFill = false;
+
+        if (appState.reservoir.netFlow > 0 && currentVolume < capacity) {
+            const timeToFill = (capacity - currentVolume) / appState.reservoir.netFlow;
+            appState.reservoir.timeToFill = new Date(new Date().getTime() + timeToFill * MS_PER_HOUR);
+            appState.reservoir.willFill = true;
+            animationDurationHours = timeToFill;
+        } else if (appState.reservoir.netFlow < 0 && currentVolume > 0) {
+            const timeToEmpty = currentVolume / Math.abs(appState.reservoir.netFlow);
+            appState.reservoir.timeToEmpty = new Date(new Date().getTime() + timeToEmpty * MS_PER_HOUR);
+            appState.reservoir.willEmpty = true;
+            animationDurationHours = timeToEmpty;
+        } else if (currentVolume > capacity) {
+            // Edge case: overflow
+            appState.dom.resultReservoir.innerHTML = `<p class="alert-warning bg-yellow-100 border border-yellow-400 text-yellow-700 p-3 mt-4 rounded-lg">⚠️ La **Quantité actuelle** est supérieure à la **Capacité réservoir**.</p>`;
+            updateVisuals(currentVolume, getInputValue("deja"), capacity, getInputValue("total"), appState.shipLoading.stopQuantityAbs);
+            stopAnimation();
+            return;
+        }
+
+        // Check if reservoir is sufficient for ship loading
+        if (isShipLoadingActive) {
+            const shipLoadingDuration = appState.shipLoading.durationHours;
+            animationDurationHours = shipLoadingDuration;
+            
+            if (appState.reservoir.netFlow < 0) {
+                const timeToEmptyDuringShipLoading = currentVolume / Math.abs(appState.reservoir.netFlow);
+                if (timeToEmptyDuringShipLoading < shipLoadingDuration) {
+                    const emptyTime = new Date(appState.shipLoading.startTime.getTime() + timeToEmptyDuringShipLoading * MS_PER_HOUR);
+                    const suggestedRate = (inflowRate + currentVolume / shipLoadingDuration);
+                    
+                    message = `<p class="alert-error bg-red-100 border border-red-400 text-red-700 p-3 mt-4 rounded-lg">
+                        ⚠️ Le réservoir sera vide avant la fin du chargement du navire !<br>
+                        🕒 Vide estimé: **${emptyTime.toLocaleString('fr-CA')}**<br>
+                        **Suggestion:** Pour éviter que le réservoir ne se vide, vous devez ajuster le **débit de chargement** à un maximum de **${suggestedRate.toFixed(2)} m³/h**.
+                    </p>`;
+                }
+            }
+            if (!message) {
+                 message = `<p class="alert-success bg-green-100 border border-green-400 text-green-700 p-3 mt-4 rounded-lg">
+                    ✅ Le réservoir peut alimenter le navire jusqu’à la fin du chargement.<br>
+                    ⏰ Fin du chargement prévue: **${appState.shipLoading.endTime.toLocaleString('fr-CA')}**
+                </p>`;
+            }
+            if (appState.reservoir.willFill) {
+                message = message.slice(0, -4) + `<br>📈 Réservoir plein estimé: **${appState.reservoir.timeToFill.toLocaleString('fr-CA')}**</p>`;
+            } else if (appState.reservoir.willEmpty) {
+                message = message.slice(0, -4) + `<br>📉 Réservoir vide estimé: **${appState.reservoir.timeToEmpty.toLocaleString('fr-CA')}**</p>`;
+            }
+        } else { // No ship loading active
+            if (appState.reservoir.willFill) {
+                 message = `<p class="alert-success bg-green-100 border border-green-400 text-green-700 p-3 mt-4 rounded-lg">
+                    ✅ Le réservoir se remplit.<br>
+                    📈 Réservoir plein estimé: **${appState.reservoir.timeToFill.toLocaleString('fr-CA')}**
+                </p>`;
+            } else if (appState.reservoir.willEmpty) {
+                 message = `<p class="alert-error bg-red-100 border border-red-400 text-red-700 p-3 mt-4 rounded-lg">
+                    ⚠️ Le réservoir se vide.<br>
+                    📉 Réservoir vide estimé: **${appState.reservoir.timeToEmpty.toLocaleString('fr-CA')}**
+                </p>`;
+            } else {
+                 message = `<p class="bg-blue-100 border border-blue-400 text-blue-700 p-3 mt-4 rounded-lg">
+                    ℹ️ Le réservoir est à un niveau stable (débit entrant = débit sortant).
+                </p>`;
+            }
+        }
+        
+        appState.dom.resultReservoir.innerHTML = message;
+        
+        // Start animation if there is flow or an operation to visualize
+        const hasFlow = (appState.reservoir.netFlow !== 0 || isShipLoadingActive);
+        if (hasFlow && animationDurationHours > 0) {
+            startAnimation(animationDurationHours);
+        } else {
+            stopAnimation();
+            updateVisuals(currentVolume, getInputValue("deja"), capacity, getInputValue("total"), appState.shipLoading.stopQuantityAbs);
+        }
+    }
+
+    /**
+     * Starts the animation loop for the visuals.
+     * @param {number} durationHours - The total simulated duration of the animation.
+     */
+    function startAnimation(durationHours) {
+        if (appState.animation.frameId) {
+            cancelAnimationFrame(appState.animation.frameId);
+        }
+        appState.animation.startTime = null;
+        
+        const totalDuration = Math.min(durationHours, MAX_ANIMATION_DURATION_HOURS);
+        
+        const animateFilling = (currentTime) => {
+            if (!appState.animation.startTime) appState.animation.startTime = currentTime;
+            const elapsedMs = (currentTime - appState.animation.startTime) * appState.animation.speedMultiplier;
+            let simulatedTimeHours = elapsedMs / MS_PER_HOUR;
+
+            simulatedTimeHours = Math.min(simulatedTimeHours, totalDuration);
+            
+            let currentTankVolume = appState.reservoir.currentVolume + appState.reservoir.netFlow * simulatedTimeHours;
+            currentTankVolume = Math.max(0, Math.min(appState.reservoir.capacity, currentTankVolume));
+
+            let currentBoatVolumeAbs = appState.shipLoading.deja || 0;
+            const isShipLoadingActive = (appState.shipLoading.remaining !== null && appState.shipLoading.debit > 0 && appState.shipLoading.remaining > 0);
+            if (isShipLoadingActive) {
+                const loadedVolume = Math.min(appState.shipLoading.debit * simulatedTimeHours, appState.shipLoading.remaining);
+                currentBoatVolumeAbs = (appState.shipLoading.deja || 0) + loadedVolume;
+            }
+
+            const visualTotalBoatRequiredAbs = isShipLoadingActive ? appState.shipLoading.total : (currentBoatVolumeAbs > 0 ? currentBoatVolumeAbs : 1);
+            
+            updateVisuals(currentTankVolume, currentBoatVolumeAbs, appState.reservoir.capacity, visualTotalBoatRequiredAbs, appState.shipLoading.stopQuantityAbs);
+
+            const animationShouldContinue = simulatedTimeHours < totalDuration;
+            
+            if (animationShouldContinue) {
+                appState.animation.frameId = requestAnimationFrame(animateFilling);
+            } else {
+                stopAnimation();
+                updateVisuals(currentTankVolume, currentBoatVolumeAbs, appState.reservoir.capacity, visualTotalBoatRequiredAbs, appState.shipLoading.stopQuantityAbs);
+            }
+        };
+        
+        appState.animation.frameId = requestAnimationFrame(animateFilling);
+    }
+    
+    /**
+     * Stops the current animation and hides the flow indicators.
+     */
+    function stopAnimation() {
+        if (appState.animation.frameId) {
+            cancelAnimationFrame(appState.animation.frameId);
+            appState.animation.frameId = null;
+        }
+        appState.dom.pipeFlows.forEach(el => el.style.display = 'none');
+    }
+
+    /**
+     * Updates the visual fill level of the tank and boat in the SVG.
+     */
+    function updateVisuals(currentTankVolume, currentBoatVolumeAbs, totalTankCapacity, totalBoatRequiredAbs, stopQuantityVisualAbs) {
+        const MAX_TANK_LIQUID_HEIGHT = 180;
+        const TANK_Y_OFFSET = 70;
+        const MAX_BOAT_LIQUID_HEIGHT = 55;
+        const BOAT_Y_OFFSET = 195;
+
+        // Update Tank Visualization
+        let tankFillRatio = (totalTankCapacity > 0) ? Math.min(1, Math.max(0, currentTankVolume / totalTankCapacity)) : 0;
+        let tankLiquidHeight = MAX_TANK_LIQUID_HEIGHT * tankFillRatio;
+        appState.dom.tankLiquid.setAttribute("height", tankLiquidHeight);
+        appState.dom.tankLiquid.setAttribute("y", TANK_Y_OFFSET + MAX_TANK_LIQUID_HEIGHT - tankLiquidHeight);
+        appState.dom.tankVolume.textContent = `${currentTankVolume.toFixed(0)} m³`;
+
+        // Update Boat Visualization
+        let boatFillRatio = (totalBoatRequiredAbs > 0) ? Math.min(1, Math.max(0, currentBoatVolumeAbs / totalBoatRequiredAbs)) : 0;
+        let boatLiquidHeight = MAX_BOAT_LIQUID_HEIGHT * boatFillRatio;
+        appState.dom.boatLiquid.setAttribute("height", boatLiquidHeight);
+        appState.dom.boatLiquid.setAttribute("y", BOAT_Y_OFFSET + MAX_BOAT_LIQUID_HEIGHT - boatLiquidHeight);
+        appState.dom.boatVolume.textContent = `${currentBoatVolumeAbs.toFixed(0)} m³`;
+        appState.dom.targetVolume.textContent = `Cible: ${totalBoatRequiredAbs.toFixed(0)} m³`;
+        
+        // Update Stop Marker
+        if (stopQuantityVisualAbs > 0 && stopQuantityVisualAbs < totalBoatRequiredAbs) {
+            let stopFillRatio = stopQuantityVisualAbs / totalBoatRequiredAbs;
+            let stopHeight = MAX_BOAT_LIQUID_HEIGHT * stopFillRatio;
+            appState.dom.stopMarker.setAttribute("y", BOAT_Y_OFFSET + MAX_BOAT_LIQUID_HEIGHT - stopHeight);
+            appState.dom.stopMarker.style.display = 'block';
+            appState.dom.stopMarkerText.textContent = `Arrêt: ${appState.shipLoading.stopTime ? appState.shipLoading.stopTime.toLocaleTimeString('fr-CA') : 'N/A'}`;
+            appState.dom.stopMarkerText.setAttribute("y", (BOAT_Y_OFFSET + MAX_BOAT_LIQUID_HEIGHT - stopHeight) - 5);
+            appState.dom.stopMarkerText.style.display = 'block';
+        } else {
+            appState.dom.stopMarker.style.display = 'none';
+            appState.dom.stopMarkerText.style.display = 'none';
+        }
+
+        // Update Pipe Flow Animation
+        const isFlowing = appState.reservoir.netFlow !== 0 || (appState.shipLoading.debit > 0 && currentBoatVolumeAbs < totalBoatRequiredAbs);
+        appState.dom.pipeFlows.forEach(el => el.style.display = isFlowing ? 'block' : 'none');
+    }
+
+    /**
+     * Resets all input fields and calculation results to their default states.
+     */
+    function resetCalculations() {
+        document.getElementById("total").value = "";
+        document.getElementById("deja").value = "";
+        document.getElementById("debit").value = "";
+        document.getElementById("quantiteADeplacer").value = "";
+        document.getElementById("extra").value = "";
+        document.getElementById("capRes").value = "";
+        document.getElementById("quantRes").value = "";
+        document.getElementById("debitEntrant").value = "";
+        document.getElementById("startDate").value = "";
+        document.getElementById("startTime").value = "";
+        
+        appState.dom.resultat.innerHTML = "";
+        appState.dom.resultReservoir.innerHTML = "";
+        
+        // Reset the entire appState object
+        Object.keys(appState.shipLoading).forEach(key => appState.shipLoading[key] = null);
+        Object.keys(appState.reservoir).forEach(key => appState.reservoir[key] = null);
+        
+        stopAnimation();
+        
+        appState.animation.speedMultiplier = 0.05;
+        appState.dom.animationSpeedSlider.value = appState.animation.speedMultiplier;
+        appState.dom.speedValueDisplay.textContent = `${appState.animation.speedMultiplier.toFixed(2)}x`;
+        
+        updateVisuals(0, 0, 1, 1, 0);
+    }
+</script>
+</body>
+</html>

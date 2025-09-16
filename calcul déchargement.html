@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculateur de temps de déchargement</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/customParseFormat.js"></script>
+    <script>
+        // Configuration de Tailwind pour utiliser une police Inter par défaut
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .error-message {
+            color: #ef4444;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-lg">
+        <h1 class="text-3xl font-bold text-center text-blue-700 mb-6">Calculateur de temps de déchargement</h1>
+        <p class="text-center text-gray-600 mb-8">Entrez les informations ci-dessous pour planifier votre déchargement.</p>
+
+        <div class="mb-5">
+            <label for="startDate" class="block text-gray-700 text-sm font-semibold mb-2">Date de début du déchargement</label>
+            <input
+                type="date"
+                id="startDate"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+        </div>
+
+        <div class="mb-5">
+            <label for="startTime" class="block text-gray-700 text-sm font-semibold mb-2">Heure de début du déchargement</label>
+            <input
+                type="time"
+                id="startTime"
+                value="08:00"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+        </div>
+
+        <div class="mb-5">
+            <label for="reservoirVolumes" class="block text-gray-700 text-sm font-semibold mb-2">Volumes des réservoirs (en m³, séparés par des virgules)</label>
+            <input
+                type="text"
+                id="reservoirVolumes"
+                placeholder="Ex: 5000, 3000, 7000"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Entrez les volumes pour chaque réservoir, séparés par une virgule.</p>
+        </div>
+
+        <div class="mb-5">
+            <label for="dischargedVolume" class="block text-gray-700 text-sm font-semibold mb-2">Quantité déjà déchargée (en m³)</label>
+            <input
+                type="number"
+                id="dischargedVolume"
+                value="0"
+                min="0"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Volume total déjà déchargé avant le début du calcul.</p>
+        </div>
+
+        <div class="mb-5">
+            <label for="flowRate" class="block text-gray-700 text-sm font-semibold mb-2">Débit de la pompe (en m³/h)</label>
+            <input
+                type="number"
+                id="flowRate"
+                placeholder="Ex: 250"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+        </div>
+
+        <div class="mb-5">
+            <label for="waitingTimeMinutes" class="block text-gray-700 text-sm font-semibold mb-2">Temps d'attente entre les réservoirs (en minutes)</label>
+            <input
+                type="number"
+                id="waitingTimeMinutes"
+                value="0"
+                min="0"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+        </div>
+
+        <div class="mb-5">
+            <label for="limitedInitialFlowRate" class="block text-gray-700 text-sm font-semibold mb-2">Débit initial limité (en m³/h, facultatif)</label>
+            <input
+                type="number"
+                id="limitedInitialFlowRate"
+                placeholder="Ex: 3500 (laisse vide pour pas de limite)"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Ce débit sera utilisé pendant la durée spécifiée au début de chaque réservoir.</p>
+        </div>
+
+        <div class="mb-7">
+            <label for="limitedFlowDurationMinutes" class="block text-gray-700 text-sm font-semibold mb-2">Durée du débit limité (en minutes, 0 pour désactiver)</label>
+            <input
+                type="number"
+                id="limitedFlowDurationMinutes"
+                value="0"
+                min="0"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Durée pendant laquelle le débit initial limité s'applique pour chaque réservoir.</p>
+        </div>
+
+        <div class="mb-5">
+            <label for="strippingDurationMinutes" class="block text-gray-700 text-sm font-semibold mb-2">Durée du stripping (en minutes)</label>
+            <input
+                type="number"
+                id="strippingDurationMinutes"
+                value="0"
+                min="0"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Temps supplémentaire pour la phase de stripping à la fin du déchargement.</p>
+        </div>
+
+        <div class="mb-7">
+            <label for="strippingFlowRatePercentage" class="block text-gray-700 text-sm font-semibold mb-2">Débit de stripping (en % du débit principal)</label>
+            <input
+                type="number"
+                id="strippingFlowRatePercentage"
+                value="50"
+                min="0"
+                max="100"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Débit utilisé pendant la phase de stripping.</p>
+        </div>
+
+        <div class="mb-7">
+            <label for="cowDurationMinutes" class="block text-gray-700 text-sm font-semibold mb-2">Durée du Crude Oil Washing (en minutes)</label>
+            <input
+                type="number"
+                id="cowDurationMinutes"
+                value="0"
+                min="0"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Temps supplémentaire pour la procédure de nettoyage par pétrole brut.</p>
+        </div>
+
+        <div class="mb-7">
+            <label for="finalSlowdownRatePercentage" class="block text-gray-700 text-sm font-semibold mb-2">Ralentissement final (en % du débit principal)</label>
+            <input
+                type="number"
+                id="finalSlowdownRatePercentage"
+                value="50"
+                min="0"
+                max="100"
+                oninput="calculateDischargePlan()"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+            >
+            <p class="text-xs text-gray-500 mt-1">Débit utilisé pendant les 5 dernières minutes de chaque réservoir.</p>
+        </div>
+
+
+        <button
+            onclick="calculateDischargePlan()"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105"
+        >
+            Calculer le plan de déchargement
+        </button>
+
+        <div id="result" class="mt-8 p-5 bg-blue-50 text-blue-800 rounded-lg border border-blue-200 text-center text-lg hidden">
+            <p class="mb-2">Temps total de déchargement : <span id="total-discharge-time" class="font-bold"></span></p>
+            <p class="mb-4">Heure de fin estimée totale : <span id="estimated-end-time" class="font-bold"></span></p>
+            
+            <div id="reservoir-end-times" class="text-left mt-4 border-t border-blue-200 pt-4">
+                <h3 class="font-bold text-blue-700 mb-2 text-center text-xl">Heures de fin par étape :</h3>
+            </div>
+        </div>
+
+        <div id="error-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+                <h3 class="text-xl font-bold text-red-600 mb-4">Erreur de saisie</h3>
+                <p id="error-message" class="text-gray-700 mb-6">Veuillez entrer des valeurs numériques positives valides.</p>
+                <button
+                    onclick="closeErrorModal()"
+                    class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-200 ease-in-out"
+                >
+                    Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = (today.getMonth() + 1).toString().padStart(2, '0');
+            const day = today.getDate().toString().padStart(2, '0');
+            document.getElementById('startDate').value = `${year}-${month}-${day}`;
+
+            const hours = today.getHours().toString().padStart(2, '0');
+            const minutes = today.getMinutes().toString().padStart(2, '0');
+            document.getElementById('startTime').value = `${hours}:${minutes}`;
+            
+            calculateDischargePlan();
+        };
+
+        function calculateDischargePlan() {
+            const startDateStr = document.getElementById('startDate').value;
+            const startTimeStr = document.getElementById('startTime').value;
+            const reservoirVolumesStr = document.getElementById('reservoirVolumes').value;
+            const dischargedVolume = parseFloat(document.getElementById('dischargedVolume').value);
+            const mainFlowRate = parseFloat(document.getElementById('flowRate').value);
+            const waitingTimeMinutes = parseFloat(document.getElementById('waitingTimeMinutes').value);
+            const limitedInitialFlowRateInput = document.getElementById('limitedInitialFlowRate').value;
+            const limitedFlowDurationMinutes = parseFloat(document.getElementById('limitedFlowDurationMinutes').value);
+            const strippingDurationMinutes = parseFloat(document.getElementById('strippingDurationMinutes').value);
+            const cowDurationMinutes = parseFloat(document.getElementById('cowDurationMinutes').value);
+            const strippingFlowRatePercentage = parseFloat(document.getElementById('strippingFlowRatePercentage').value);
+            const finalSlowdownRatePercentage = parseFloat(document.getElementById('finalSlowdownRatePercentage').value);
+            
+            const reservoirVolumes = reservoirVolumesStr.split(',')
+                                                     .map(vol => parseFloat(vol.trim()))
+                                                     .filter(vol => !isNaN(vol) && vol > 0);
+            
+            const totalInitialVolume = reservoirVolumes.reduce((sum, vol) => sum + vol, 0);
+
+            // Validation des entrées
+            const inputs = [
+                { value: mainFlowRate, min: 0, msg: 'Le débit de la pompe doit être un nombre positif.' },
+                { value: waitingTimeMinutes, min: 0, msg: "Le temps d'attente doit être non-négatif." },
+                { value: limitedFlowDurationMinutes, min: 0, msg: "La durée du débit limité doit être non-négative." },
+                { value: strippingDurationMinutes, min: 0, msg: "La durée du stripping doit être non-négative." },
+                { value: cowDurationMinutes, min: 0, msg: "La durée du COW doit être non-négative." },
+                { value: dischargedVolume, min: 0, msg: "Le volume déchargé doit être non-négatif." }
+            ];
+
+            const isValid = inputs.every(input => !isNaN(input.value) && input.value >= input.min);
+
+            if (!isValid || reservoirVolumes.length === 0) {
+                document.getElementById('result').classList.add('hidden');
+                return;
+            }
+
+            if (dischargedVolume > totalInitialVolume) {
+                showErrorModal("Le volume déjà déchargé est supérieur au volume total des réservoirs.");
+                return;
+            }
+
+            let currentCalculatedTime;
+            if (!startDateStr || !startTimeStr) {
+                currentCalculatedTime = dayjs();
+            } else {
+                currentCalculatedTime = dayjs(`${startDateStr} ${startTimeStr}`, 'YYYY-MM-DD HH:mm');
+            }
+
+            let totalDischargeHours = 0;
+            const reservoirEndTimes = [];
+            
+            let tempDischargedVolume = dischargedVolume;
+            let volumesToProcess = [];
+            
+            for (let i = 0; i < reservoirVolumes.length; i++) {
+                if (tempDischargedVolume >= reservoirVolumes[i]) {
+                    tempDischargedVolume -= reservoirVolumes[i];
+                } else {
+                    volumesToProcess = reservoirVolumes.slice(i);
+                    volumesToProcess[0] -= tempDischargedVolume;
+                    break;
+                }
+            }
+            if (volumesToProcess.length === 0 && dischargedVolume < totalInitialVolume) {
+                volumesToProcess.push(totalInitialVolume - dischargedVolume);
+            }
+            
+            const finalSlowdownRate = mainFlowRate * (finalSlowdownRatePercentage / 100);
+            const finalSlowdownDurationMinutes = 5;
+            const finalSlowdownVolume = (finalSlowdownRate / 60) * finalSlowdownDurationMinutes;
+            const effectiveStrippingFlowRate = mainFlowRate * (strippingFlowRatePercentage / 100);
+
+            for (let i = 0; i < volumesToProcess.length; i++) {
+                let currentVolumeToDischarge = volumesToProcess[i];
+                let timeForReservoir = 0;
+                let volumeAfterLimitedFlow = currentVolumeToDischarge;
+
+                // 1. Gère le débit initial limité s'il est applicable
+                if (limitedFlowDurationMinutes > 0) {
+                    const limitedFlowDurationHours = limitedFlowDurationMinutes / 60;
+                    const effectiveLimitedFlowRate = Math.min(mainFlowRate, parseFloat(limitedInitialFlowRateInput) || Infinity);
+                    const volumeDischargedDuringLimitedTime = effectiveLimitedFlowRate * limitedFlowDurationHours;
+
+                    if (currentVolumeToDischarge <= volumeDischargedDuringLimitedTime) {
+                        timeForReservoir = currentVolumeToDischarge / effectiveLimitedFlowRate;
+                        volumeAfterLimitedFlow = 0;
+                    } else {
+                        timeForReservoir = limitedFlowDurationHours;
+                        volumeAfterLimitedFlow -= volumeDischargedDuringLimitedTime;
+                    }
+                }
+
+                // 2. Gère le ralentissement final de 5 minutes
+                let volumeAfterFinalSlowdown = volumeAfterLimitedFlow;
+                if (volumeAfterLimitedFlow > finalSlowdownVolume && finalSlowdownRatePercentage > 0) {
+                    timeForReservoir += (volumeAfterFinalSlowdown - finalSlowdownVolume) / mainFlowRate;
+                    timeForReservoir += finalSlowdownDurationMinutes / 60;
+                    volumeAfterFinalSlowdown = 0; //tout le volume a été géré
+                } else {
+                    // Si le volume est trop petit pour la phase de ralentissement
+                    if (finalSlowdownRatePercentage > 0) {
+                        timeForReservoir += volumeAfterFinalSlowdown / finalSlowdownRate;
+                    } else {
+                        timeForReservoir += volumeAfterFinalSlowdown / mainFlowRate;
+                    }
+                }
+                
+                // 3. Gère le stripping et le COW pour le dernier réservoir
+                if (i === volumesToProcess.length - 1) {
+                    const strippingTimeHours = (strippingDurationMinutes / 60);
+                    const cowTimeHours = (cowDurationMinutes / 60);
+                    
+                    timeForReservoir += strippingTimeHours + cowTimeHours;
+                }
+                
+                totalDischargeHours += timeForReservoir;
+                currentCalculatedTime = currentCalculatedTime.add(timeForReservoir, 'hour');
+                
+                if (i === volumesToProcess.length - 1) {
+                    reservoirEndTimes.push(`Fin de la décharge (incluant stripping & COW): ${currentCalculatedTime.format('DD/MM/YYYY HH:mm')}`);
+                } else {
+                    reservoirEndTimes.push(`Réservoir ${volumesToProcess.indexOf(volumesToProcess[i]) + 1}: ${currentCalculatedTime.format('DD/MM/YYYY HH:mm')}`);
+                }
+
+                if (i < volumesToProcess.length - 1) {
+                    currentCalculatedTime = currentCalculatedTime.add(waitingTimeMinutes, 'minute');
+                }
+            }
+
+            const totalHours = Math.floor(totalDischargeHours);
+            const totalMinutes = Math.round((totalDischargeHours - totalHours) * 60);
+
+            document.getElementById('total-discharge-time').innerText = `${totalHours} heures et ${totalMinutes} minutes`;
+            document.getElementById('estimated-end-time').innerText = currentCalculatedTime.format('DD/MM/YYYY HH:mm');
+            document.getElementById('result').classList.remove('hidden');
+
+            const reservoirEndTimesDiv = document.getElementById('reservoir-end-times');
+            reservoirEndTimesDiv.innerHTML = '<h3 class="font-bold text-blue-700 mb-2 text-center text-xl">Heures de fin par étape :</h3>';
+            reservoirEndTimes.forEach(item => {
+                const p = document.createElement('p');
+                p.className = 'text-gray-700 text-sm mb-1';
+                p.innerText = item;
+                reservoirEndTimesDiv.appendChild(p);
+            });
+        }
+
+        function showErrorModal(message) {
+            document.getElementById('error-message').innerText = message;
+            document.getElementById('error-modal').classList.remove('hidden');
+        }
+
+        function closeErrorModal() {
+            document.getElementById('error-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

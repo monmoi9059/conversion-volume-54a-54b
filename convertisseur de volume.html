@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertisseur de Volume (54A & 54B)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: calc(100% - 22px);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9f5e9;
+            border: 1px solid #c8e6c9;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            display: none;
+        }
+        #directionSelect {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Convertisseur de Volume (54A & 54B)</h1>
+
+    <div class="input-group" id="directionSelect">
+        <label for="conversionDirection">Sens de la conversion:</label>
+        <select id="conversionDirection" onchange="updateLabels()">
+            <option value="toOther">De 15 °C vers une autre température</option>
+            <option value="to15">D'une température quelconque vers 15 °C</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <label id="initialVolumeLabel" for="initialVolume">Volume à 15°C (L, m³, etc.):</label>
+        <input type="number" id="initialVolume" placeholder="Entrez le volume initial" step="any" required>
+    </div>
+
+    <div class="input-group">
+        <label id="temperatureLabel" for="temperature">Température réelle (°C):</label>
+        <input type="number" id="temperature" placeholder="Entrez la température actuelle" step="any" required>
+    </div>
+
+    <div class="input-group">
+        <label for="productType">Type de produit:</label>
+        <select id="productType">
+            <option value="brut">Pétrole Brut (Table 54A)</option>
+            <option value="raffiner">Produits Raffinés (Table 54B)</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <label for="density15">Densité relative à 15°C (kg/m³):</label>
+        <input type="number" id="density15" placeholder="Ex: 840.5" step="any" required>
+    </div>
+
+    <button onclick="calculateVolume()">Calculer</button>
+
+    <div id="result"></div>
+</div>
+
+<script>
+    const INITIAL_TEMP = 15;
+
+    function updateLabels() {
+        const direction = document.getElementById('conversionDirection').value;
+        const initialVolumeLabel = document.getElementById('initialVolumeLabel');
+        const temperatureLabel = document.getElementById('temperatureLabel');
+        
+        if (direction === 'toOther') {
+            initialVolumeLabel.textContent = 'Volume à 15°C (L, m³, etc.):';
+            temperatureLabel.textContent = 'Température cible (°C):';
+        } else {
+            initialVolumeLabel.textContent = 'Volume mesuré (L, m³, etc.):';
+            temperatureLabel.textContent = 'Température mesurée (°C):';
+        }
+    }
+
+    // Fonction pour calculer le VCF selon les tables API 54A et 54B
+    function calculateVCF(density15, temperature, type) {
+        const T_degre = temperature - INITIAL_TEMP;
+        let vcf;
+
+        // Coefficients selon le type de produit
+        if (type === 'brut') {
+            // Table 54A: Pétrole Brut. Les coefficients K0, K1, K2 ont des valeurs spécifiques
+            // pour cette table.
+            const K0 = 613.9723;
+            const K1 = 0;
+            const K2 = 0;
+            const alpha60 = (K0 + K1 * density15 + K2 * density15 * density15) / (density15 * density15);
+            vcf = Math.exp(-alpha60 * T_degre * (1 + 0.8 * alpha60 * T_degre));
+        } else {
+            // Table 54B: Produits Raffinés. Les coefficients varient selon la densité.
+            let K0, K1, K2;
+            if (density15 <= 770) {
+                 K0 = 346.42278;
+                 K1 = 0.43884;
+                 K2 = 0;
+            } else if (density15 > 770 && density15 < 778) {
+                const A = -0.00033612;
+                const B = 2680.32;
+                const alpha = A + B / (density15 * density15);
+                vcf = Math.exp(-alpha * T_degre * (1 + 0.8 * alpha * T_degre));
+                return vcf;
+            } else if (density15 >= 778 && density15 < 839) {
+                K0 = 594.5418;
+                K1 = 0;
+                K2 = 0;
+            } else { // density15 >= 839
+                K0 = 186.9696;
+                K1 = 0.48618;
+                K2 = 0;
+            }
+            const alpha60 = (K0 + K1 * density15 + K2 * density15 * density15) / (density15 * density15);
+            vcf = Math.exp(-alpha60 * T_degre * (1 + 0.8 * alpha60 * T_degre));
+        }
+
+        return vcf;
+    }
+
+    function calculateVolume() {
+        const initialVolume = parseFloat(document.getElementById('initialVolume').value);
+        const temperature = parseFloat(document.getElementById('temperature').value);
+        const density15 = parseFloat(document.getElementById('density15').value);
+        const productType = document.getElementById('productType').value;
+        const direction = document.getElementById('conversionDirection').value;
+
+        if (isNaN(initialVolume) || isNaN(temperature) || isNaN(density15) || initialVolume <= 0) {
+            alert("Veuillez entrer des valeurs numériques valides.");
+            return;
+        }
+
+        const vcf = calculateVCF(density15, temperature, productType);
+
+        let finalVolume;
+        let resultText = '';
+
+        if (direction === 'toOther') {
+            finalVolume = initialVolume / vcf;
+            resultText = `Le volume à ${temperature.toFixed(2)} °C est de <b>${finalVolume.toFixed(2)}</b>.`;
+        } else {
+            finalVolume = initialVolume * vcf;
+            resultText = `Le volume corrigé à 15 °C est de <b>${finalVolume.toFixed(2)}</b>.`;
+        }
+
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = resultText + `<br><small>(Facteur de correction (VCF) calculé: ${vcf.toFixed(6)})</small>`;
+        resultDiv.style.display = 'block';
+    }
+
+    updateLabels();
+</script>
+
+</body>
+</html>>
