@@ -141,16 +141,10 @@
         } else {
             // Table 54B: Produits Raffinés. Les coefficients varient selon la densité.
             let K0, K1, K2;
-            if (density15 <= 770) {
+            if (density15 < 778) { // Cette condition fusionne la plage problématique.
                  K0 = 346.42278;
                  K1 = 0.43884;
                  K2 = 0;
-            } else if (density15 > 770 && density15 < 778) {
-                const A = -0.00033612;
-                const B = 2680.32;
-                const alpha = A + B / (density15 * density15);
-                vcf = Math.exp(-alpha * T_degre * (1 + 0.8 * alpha * T_degre));
-                return vcf;
             } else if (density15 >= 778 && density15 < 839) {
                 K0 = 594.5418;
                 K1 = 0;
