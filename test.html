@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>QUnit Tests for Volume Converter</title>
+  <link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-2.20.0.css">
+</head>
+<body>
+  <div id="qunit"></div>
+  <div id="qunit-fixture">
+    <div class="container">
+        <h1>Convertisseur de Volume (54A & 54B)</h1>
+        <div class="input-group" id="directionSelect">
+            <label for="conversionDirection">Sens de la conversion:</label>
+            <select id="conversionDirection" onchange="updateLabels()">
+                <option value="toOther">De 15 °C vers une autre température</option>
+                <option value="to15">D'une température quelconque vers 15 °C</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label id="initialVolumeLabel" for="initialVolume">Volume à 15°C (L, m³, etc.):</label>
+            <input type="number" id="initialVolume" placeholder="Entrez le volume initial" step="any" required>
+        </div>
+        <div class="input-group">
+            <label id="temperatureLabel" for="temperature">Température réelle (°C):</label>
+            <input type="number" id="temperature" placeholder="Entrez la température actuelle" step="any" required>
+        </div>
+        <div class="input-group">
+            <label for="productType">Type de produit:</label>
+            <select id="productType">
+                <option value="brut">Pétrole Brut (Table 54A)</option>
+                <option value="raffiner">Produits Raffinés (Table 54B)</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label for="density15">Densité relative à 15°C (kg/m³):</label>
+            <input type="number" id="density15" placeholder="Ex: 840.5" step="any" required>
+        </div>
+        <button onclick="calculateVolume()">Calculer</button>
+        <div id="result" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/qunit/qunit-2.20.0.js"></script>
+
+  <script>
+    // Script from convertisseur de volume.html
+    const INITIAL_TEMP = 15;
+
+    function updateLabels() {
+        const direction = document.getElementById('conversionDirection').value;
+        const initialVolumeLabel = document.getElementById('initialVolumeLabel');
+        const temperatureLabel = document.getElementById('temperatureLabel');
+
+        if (direction === 'toOther') {
+            initialVolumeLabel.textContent = 'Volume à 15°C (L, m³, etc.):';
+            temperatureLabel.textContent = 'Température cible (°C):';
+        } else {
+            initialVolumeLabel.textContent = 'Volume mesuré (L, m³, etc.):';
+            temperatureLabel.textContent = 'Température mesurée (°C):';
+        }
+    }
+
+    function calculateVCF(density15, temperature, type) {
+        const T_degre = temperature - INITIAL_TEMP;
+        let vcf;
+
+        if (type === 'brut') {
+            const K0 = 613.9723;
+            const K1 = 0;
+            const K2 = 0;
+            const alpha60 = (K0 + K1 * density15 + K2 * density15 * density15) / (density15 * density15);
+            vcf = Math.exp(-alpha60 * T_degre * (1 + 0.8 * alpha60 * T_degre));
+        } else {
+            let K0, K1, K2;
+            if (density15 <= 770) {
+                 K0 = 346.42278;
+                 K1 = 0.43884;
+                 K2 = 0;
+            } else if (density15 > 770 && density15 < 778) {
+                const A = -0.00033612;
+                const B = 2680.32;
+                const alpha = A + B / (density15 * density15);
+                vcf = Math.exp(-alpha * T_degre * (1 + 0.8 * alpha * T_degre));
+                return vcf;
+            } else if (density15 >= 778 && density15 < 839) {
+                K0 = 594.5418;
+                K1 = 0;
+                K2 = 0;
+            } else {
+                K0 = 186.9696;
+                K1 = 0.48618;
+                K2 = 0;
+            }
+            const alpha60 = (K0 + K1 * density15 + K2 * density15 * density15) / (density15 * density15);
+            vcf = Math.exp(-alpha60 * T_degre * (1 + 0.8 * alpha60 * T_degre));
+        }
+
+        return vcf;
+    }
+
+    function calculateVolume() {
+        const initialVolume = parseFloat(document.getElementById('initialVolume').value);
+        const temperature = parseFloat(document.getElementById('temperature').value);
+        const density15 = parseFloat(document.getElementById('density15').value);
+        const productType = document.getElementById('productType').value;
+        const direction = document.getElementById('conversionDirection').value;
+
+        if (isNaN(initialVolume) || isNaN(temperature) || isNaN(density15) || initialVolume <= 0 || density15 <= 0) {
+            alert("Veuillez entrer des valeurs numériques valides et positives.");
+            return;
+        }
+
+        const vcf = calculateVCF(density15, temperature, productType);
+
+        let finalVolume;
+        let resultText = '';
+
+        if (direction === 'toOther') {
+            finalVolume = initialVolume / vcf;
+            resultText = `Le volume à ${temperature.toFixed(2)} °C est de <b>${finalVolume.toFixed(2)}</b>.`;
+        } else {
+            finalVolume = initialVolume * vcf;
+            resultText = `Le volume corrigé à 15 °C est de <b>${finalVolume.toFixed(2)}</b>.`;
+        }
+
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = resultText + `<br><small>(Facteur de correction (VCF) calculé: ${vcf.toFixed(6)})</small>`;
+        resultDiv.style.display = 'block';
+    }
+  </script>
+
+  <script>
+    // Mock the alert function
+    let alertCalled = false;
+    let alertMessage = '';
+    window.alert = (msg) => {
+        alertCalled = true;
+        alertMessage = msg;
+    };
+
+    QUnit.module('calculateVolume', function(hooks) {
+        hooks.beforeEach(function() {
+            // Reset inputs and alert mock
+            document.getElementById('initialVolume').value = '1000';
+            document.getElementById('temperature').value = '25';
+            document.getElementById('density15').value = '850';
+            document.getElementById('productType').value = 'brut';
+            document.getElementById('conversionDirection').value = 'to15';
+            document.getElementById('result').style.display = 'none';
+            alertCalled = false;
+            alertMessage = '';
+        });
+
+        QUnit.test('should show alert for zero density', function(assert) {
+            document.getElementById('density15').value = '0';
+            calculateVolume();
+            assert.ok(alertCalled, 'Alert was called for zero density');
+            assert.equal(document.getElementById('result').style.display, 'none', 'Result is not shown');
+        });
+
+        QUnit.test('should show alert for negative density', function(assert) {
+            document.getElementById('density15').value = '-100';
+            calculateVolume();
+            assert.ok(alertCalled, 'Alert was called for negative density');
+            assert.equal(document.getElementById('result').style.display, 'none', 'Result is not shown');
+        });
+
+        QUnit.test('should not show alert for positive density', function(assert) {
+            calculateVolume();
+            assert.notOk(alertCalled, 'Alert was not called for positive density');
+            assert.equal(document.getElementById('result').style.display, 'block', 'Result is shown');
+        });
+
+        QUnit.test('should perform calculation correctly with valid inputs', function(assert) {
+            calculateVolume();
+            const resultText = document.getElementById('result').innerHTML;
+            assert.ok(resultText.includes('Le volume corrigé à 15 °C est de'), 'Correct result text');
+            assert.ok(resultText.includes('991.48'), 'Correctly calculated volume for brut');
+        });
+    });
+  </script>
+</body>
+</html>

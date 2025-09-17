@@ -204,8 +204,8 @@
         const productType = document.getElementById('productType').value;
         const direction = document.getElementById('conversionDirection').value;
 
-        if (isNaN(initialVolume) || isNaN(temperature) || isNaN(density15) || initialVolume <= 0) {
-            alert("Veuillez entrer des valeurs numériques valides.");
+        if (isNaN(initialVolume) || isNaN(temperature) || isNaN(density15) || initialVolume <= 0 || density15 <= 0) {
+            alert("Veuillez entrer des valeurs numériques valides et positives.");
             return;
         }
 
